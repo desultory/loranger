@@ -32,4 +32,4 @@ def main():
 
     if command:
         logger.info(f"Sending command: {command}")
-        logger.info(f"[{command}] Got response: {client.run_command(command)}")
+        logger.info(f"[{command}] Got response:\n{client.run_command(command)}")
