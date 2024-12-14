@@ -162,7 +162,5 @@ class LoRanger(Queries, Actions):
 
     def run_command(self, command: str, timeout=35):
         """Runs a command and returns the result"""
-        if isinstance(command, list) and not isinstance(command, str):
-            command = " ".join(command)
         self.send_msg(f"c:{command}")
         return self.read_data(timeout=timeout, break_char="\x00\x00\n")

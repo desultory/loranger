@@ -7,7 +7,7 @@ def main():
     args = BASE_ARGS + [
         {"flags": ["-q", "--query"], "help": "Query to perform", "action": "store"},
         {"flags": ["-a", "--action"], "help": "action to perform", "action": "store", "nargs": "*"},
-        {"flags": ["-c", "--command"], "help": "command to perform", "action": "store", "nargs": "*"},
+        {"flags": ["-c", "--command"], "help": "command to perform", "action": "store"},
     ]
 
     kwargs = get_kwargs(package="loranger", description="loranger", arguments=args)
