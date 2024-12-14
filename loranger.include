@@ -1,0 +1,10 @@
+#!/sbin/openrc-run
+# Distributed under the terms of the GNU General Public License v2
+
+description="LoRa system controller"
+
+command="loranger_server"
+pidfile=${pidfile:-"/run/${RC_SVCNAME}.pid"}
+command_background="true"  # It stays in the foreground
+log_dir="/var/log/"
+start_stop_daemon_args="--stdout ${log_dir}/${RC_SVCNAME}.log --stderr ${log_dir}/${RC_SVCNAME}.log"
