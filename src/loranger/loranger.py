@@ -82,7 +82,11 @@ class LoRanger(Queries, Actions):
         self.logger.debug("Unknown data: %s", data)
 
     def send_msg(self, response: str):
-        """Sends the message to the serial port"""
+        """Sends the message to the serial port
+
+        TODO: modules seem to have a limit of 1224 bytes per burst.
+        Handling this may require reading the AUX pin to determine when the module is ready to receive more data
+        """
         if isinstance(response, list) and not isinstance(response, str):
             response = ",".join(response)
         if not response.endswith("\n"):
@@ -115,14 +119,16 @@ class LoRanger(Queries, Actions):
         try:
             ret = run(arglist, capture_output=True, timeout=30)
         except TimeoutExpired as e:
-            return e.stdout.decode()
+            output = e.stdout.decode()
         except FileNotFoundError:
-            return f"Unknown command: {command}"
-        if ret.returncode:
-            return ret.stderr.decode()
-        return ret.stdout.decode()
+            output = f"Command not found: {command}"
+        else:
+            output = ret.stdout.decode()
+        output += "\x00\x00"
 
-    def read_data(self, timeout=None):
+        return output
+
+    def read_data(self, timeout=None, break_char="\n"):
         """Attempts to read data from the serial port, stops after read_timeout"""
         timeout = timeout or self.read_timeout
         current_time = time()
@@ -130,9 +136,10 @@ class LoRanger(Queries, Actions):
         # Loop while the timeout is not reached, or if data is read
         while time() - current_time < timeout:
             if chunk := self.serial.read_all():
+                self.logger.debug("Read chunk: %s", chunk)
                 data += chunk
                 current_time = time()
-            if data.endswith(b"\n"):
+            if break_char and data.endswith(break_char.encode()):
                 break
             sleep(0.001)
         # Sanitize first
@@ -158,4 +165,4 @@ class LoRanger(Queries, Actions):
         if isinstance(command, list) and not isinstance(command, str):
             command = " ".join(command)
         self.send_msg(f"c:{command}")
-        return self.read_data(timeout=timeout)
+        return self.read_data(timeout=timeout, break_char="\x00\x00\n")
