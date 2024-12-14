@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 
 from zenlib.util import get_kwargs
+
 from loranger import LoRanger
 
 
-if __name__ == "__main__":
+def main():
     args = [
         {
             "flags": ["console"],
@@ -23,3 +24,7 @@ if __name__ == "__main__":
     loranger = LoRanger(console=console, baud=baud, logger=logger)
 
     loranger.runloop()
+
+
+if __name__ == "__main__":
+    main()

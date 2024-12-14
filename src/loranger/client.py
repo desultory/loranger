@@ -4,7 +4,8 @@ from zenlib.util import get_kwargs
 
 from loranger import LoRanger
 
-if __name__ == "__main__":
+
+def main():
     args = [
         {
             "flags": ["console"],
@@ -36,3 +37,7 @@ if __name__ == "__main__":
         action_args = action[1:]
         logger.info(f"Sending action: {action_name} with args: {action_args}")
         logger.info(f"[{action_name}] Got response: {client.run_action(action_name, action_args)}")
+
+
+if __name__ == "__main__":
+    main()

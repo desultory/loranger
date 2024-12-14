@@ -5,8 +5,8 @@ from time import sleep, time
 from serial import Serial
 from zenlib.logging import loggify
 
-from queries import Queries
-from actions import Actions
+from .queries import Queries
+from .actions import Actions
 
 
 class ActionNotFoundError(Exception):
