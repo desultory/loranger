@@ -19,3 +19,9 @@ RDEPEND="
 	>=dev-python/zenlib-9999[${PYTHON_USEDEP}]
 	dev-python/pyserial[${PYTHON_USEDEP}]
 "
+
+src_install() {
+	distutils-r1_src_install
+
+	newinitd loranger.include loranger
+}
