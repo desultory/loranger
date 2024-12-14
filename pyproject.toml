@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loranger"
+version = "0.1.0"
+authors = [
+  { name="Desultory", email="dev@pyl.onl" },
+]
+description = "LoRa base system controller"
+readme = "readme.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "zenlib >= 3.0.0",
+    "pyserial >= 3.5"
+]
+
+[project.scripts]
+loranger_server = "loranger.server:main"
+loranger_client = "loranger.client:main"
