@@ -1,6 +1,6 @@
 from zenlib.util import get_kwargs
 
-from loranger import LoRanger, BASE_ARGS
+from loranger import BASE_ARGS, LoRanger
 
 
 def main():
@@ -33,8 +33,3 @@ def main():
     if command:
         logger.info(f"Sending command: {command}")
         logger.info(f"[{command}] Got response: {client.run_command(command)}")
-
-
-
-
-

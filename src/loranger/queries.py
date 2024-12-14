@@ -2,7 +2,6 @@ from pyroute2 import IPRoute
 
 
 def get_queries():
-
     """Gets the names of all actions in this module."""
     return [name for name in dir(Queries) if not name.startswith("__")]
 

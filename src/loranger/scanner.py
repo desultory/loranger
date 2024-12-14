@@ -1,6 +1,6 @@
 from zenlib.util import get_kwargs
 
-from loranger import LoRanger, BASE_ARGS
+from loranger import BASE_ARGS, LoRanger
 
 
 def main():

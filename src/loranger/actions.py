@@ -1,11 +1,13 @@
+from subprocess import run
+
 from pyroute2 import IPRoute
 from pyroute2.netlink.exceptions import NetlinkError
-from subprocess import run
 
 
 def get_actions():
-    """ Gets the names of all actions in this module. """
+    """Gets the names of all actions in this module."""
     return [name for name in dir(Actions) if not name.startswith("__")]
+
 
 class Actions:
     """Mixins for actions.
@@ -79,4 +81,3 @@ class Actions:
             return "Stopped service: %s" % service_name
 
         return ret.stderr.decode()
-

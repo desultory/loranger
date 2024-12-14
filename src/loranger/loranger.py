@@ -5,13 +5,14 @@ from time import sleep, time
 from serial import Serial
 from zenlib.logging import loggify
 
-from .queries import Queries
 from .actions import Actions
+from .queries import Queries
 
 
 class ActionNotFoundError(Exception):
     def __str__(self):
         return f"Action not found: {self.args[0]}"
+
 
 class QueryNotFoundError(Exception):
     def __str__(self):
@@ -53,6 +54,7 @@ class LoRanger(Queries, Actions):
     def announce(self):
         """Sends an announcement message to the serial port"""
         from os import uname
+
         self.send_msg(f"h:{uname()[1]}")
 
     def handle_data(self, data: str):
@@ -106,7 +108,8 @@ class LoRanger(Queries, Actions):
 
     def handle_command(self, command: str):
         """Runs the specified command on the device"""
-        from subprocess import run, TimeoutExpired
+        from subprocess import TimeoutExpired, run
+
         self.logger.info("Running command: %s", command)
         arglist = command.split(" ")
         try:
@@ -156,5 +159,3 @@ class LoRanger(Queries, Actions):
             command = " ".join(command)
         self.send_msg(f"c:{command}")
         return self.read_data(timeout=timeout)
-
-
