@@ -1,18 +1,10 @@
 from zenlib.util import get_kwargs
 
-from loranger import LoRanger
+from loranger import LoRanger, BASE_ARGS
 
 
 def main():
-    args = [
-        {
-            "flags": ["console"],
-            "help": "Serial interface to use",
-            "action": "store",
-            "default": "/dev/ttyUSB0",
-            "nargs": "?",
-        },
-        {"flags": ["--baud", "-b"], "help": "Baud rate to use", "action": "store", "default": "9600"},
+    args = BASE_ARGS + [
         {"flags": ["-q", "--query"], "help": "Query to perform", "action": "store"},
         {"flags": ["-a", "--action"], "help": "action to perform", "action": "store", "nargs": "*"},
     ]
