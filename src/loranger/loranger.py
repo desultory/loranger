@@ -20,6 +20,15 @@ class QueryNotFoundError(Exception):
 
 @loggify
 class LoRanger(Queries, Actions):
+    """
+    h:ello
+      h:<hostname> - Announces the hostname of the device
+    q:uery
+      q:<parameter> - Queries the device for the specified parameter
+    a:ction
+      a:<action>:<arg1>,<arg2>... - Runs the specified action with the given arguments
+    """
+
     def __init__(self, console: str, baud: int, read_timeout=5, *args, **kwargs):
         self.serial = Serial(port=console, baudrate=baud)
         self.read_timeout = read_timeout  # serial read timeout in s
@@ -27,6 +36,7 @@ class LoRanger(Queries, Actions):
     def runloop(self):
         """Main loop, runs read_data forever and calls the appropriate action"""
         self.logger.info("Starting main loop")
+        self.announce()
         while True:
             if data := self.read_data():
                 try:
@@ -37,6 +47,11 @@ class LoRanger(Queries, Actions):
                     resp = str(e)
                 if resp:
                     self.send_msg(resp)
+
+    def announce(self):
+        """Sends an announcement message to the serial port"""
+        from os import uname
+        self.send_msg(f"h:{uname()[1]}")
 
     def handle_data(self, data: str):
         """Handles input data, actions will be in the format of "r:action:arg1,arg2..."
@@ -56,6 +71,7 @@ class LoRanger(Queries, Actions):
             parameter = data[1]
             self.logger.debug("Received query for parameter: %s", parameter)
             return self.handle_query(parameter)
+        self.logger.debug("Unknown data: %s", data)
 
     def send_msg(self, response: str):
         """Sends the message to the serial port"""

@@ -24,3 +24,4 @@ dependencies = [
 [project.scripts]
 loranger_server = "loranger.server:main"
 loranger_client = "loranger.client:main"
+loranger_scanner = "loranger.scanner:main"

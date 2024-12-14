@@ -19,7 +19,14 @@ def main():
     console = kwargs.pop("console")
     baud = kwargs.pop("baud")
     logger = kwargs.pop("logger")
-    loranger = LoRanger(console=console, baud=baud, logger=logger)
+    client = LoRanger(console=console, baud=baud, logger=logger, read_timeout=1)
 
-    loranger.runloop()
-
+    while True:
+        try:
+            if data := client.read_data():
+                data = data.split(":")
+                if data[0] == "h":
+                    hostname = data[1]
+                    print(f"Received hello from: {hostname}")
+        except KeyboardInterrupt:
+            break
