@@ -27,6 +27,8 @@ class LoRanger(Queries, Actions):
       q:<parameter> - Queries the device for the specified parameter
     a:ction
       a:<action>:<arg1>,<arg2>... - Runs the specified action with the given arguments
+    c:ommand
+      c:<command> - Runs the specified command on the device
     """
 
     def __init__(self, console: str, baud: int, read_timeout=5, *args, **kwargs):
@@ -71,6 +73,10 @@ class LoRanger(Queries, Actions):
             parameter = data[1]
             self.logger.debug("Received query for parameter: %s", parameter)
             return self.handle_query(parameter)
+        elif data[0] == "c":
+            command = data[1]
+            self.logger.debug("Received command: %s", command)
+            return self.handle_command(command)
         self.logger.debug("Unknown data: %s", data)
 
     def send_msg(self, response: str):
@@ -86,7 +92,7 @@ class LoRanger(Queries, Actions):
     def handle_query(self, parameter: str):
         """Runs the specified query and returns the result"""
         if query := getattr(self, f"query_{parameter}", None):
-            self.logger.debug("Running query: %s", parameter)
+            self.logger.info("Running query: %s", parameter)
             return query()
         raise QueryNotFoundError(parameter)
 
@@ -94,16 +100,32 @@ class LoRanger(Queries, Actions):
         """Runs the specified action with the given arguments
         Raises ActionNotFoundError if the action is not defined"""
         if action := getattr(self, action_name, None):
-            self.logger.debug("Running action: %s with args: %s", action_name, args)
+            self.logger.info("Running action: %s with args: %s", action_name, args)
             return action(*args)
         raise ActionNotFoundError(action_name)
 
-    def read_data(self):
+    def handle_command(self, command: str):
+        """Runs the specified command on the device"""
+        from subprocess import run, TimeoutExpired
+        self.logger.info("Running command: %s", command)
+        arglist = command.split(" ")
+        try:
+            ret = run(arglist, capture_output=True, timeout=30)
+        except TimeoutExpired as e:
+            return e.stdout.decode()
+        except FileNotFoundError:
+            return f"Unknown command: {command}"
+        if ret.returncode:
+            return ret.stderr.decode()
+        return ret.stdout.decode()
+
+    def read_data(self, timeout=None):
         """Attempts to read data from the serial port, stops after read_timeout"""
+        timeout = timeout or self.read_timeout
         current_time = time()
         data = b""
         # Loop while the timeout is not reached, or if data is read
-        while time() - current_time < self.read_timeout:
+        while time() - current_time < timeout:
             if chunk := self.serial.read_all():
                 data += chunk
                 current_time = time()
@@ -127,4 +149,12 @@ class LoRanger(Queries, Actions):
         """Runs an action with the given arguments"""
         self.send_msg(f"a:{action}:{','.join(args)}")
         return self.read_data()
+
+    def run_command(self, command: str, timeout=35):
+        """Runs a command and returns the result"""
+        if isinstance(command, list) and not isinstance(command, str):
+            command = " ".join(command)
+        self.send_msg(f"c:{command}")
+        return self.read_data(timeout=timeout)
+
 
