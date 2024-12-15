@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from time import sleep, time
+from contextlib import contextmanager
 
 from serial import Serial
 from zenlib.logging import loggify
@@ -33,10 +34,15 @@ class LoRanger(Queries, Actions):
       c:<command> - Runs the specified command on the device
     """
 
-    def __init__(self, console: str, baud: int, read_timeout=5, aux_pin=None, *args, **kwargs):
+    def __init__(self, console: str, baud: int, read_timeout=5, aux_pin=None, packet_size=200, *args, **kwargs):
         self.serial = Serial(port=console, baudrate=baud)
         self.read_timeout = read_timeout  # serial read timeout in s
-        self.aux_pin = Pin(aux_pin) if aux_pin else None
+        self.packet_size = packet_size
+        if aux_pin:
+            self.aux_pin = Pin(aux_pin)
+            self.aux_pin.direction = "in"
+        else:
+            self.aux_pin = None
 
     def runloop(self):
         """Main loop, runs read_data forever and calls the appropriate action"""
@@ -85,11 +91,48 @@ class LoRanger(Queries, Actions):
             return self.handle_command(command)
         self.logger.debug("Unknown data: %s", data)
 
+    @contextmanager
+    def aux_ready(self, high_time=15, wait_time=25):
+        """ Checks that the AUX pin is high for 100ms before sending data.
+        High time is the time in ms that the AUX pin must be high before sending data
+        wait time is the time in ms between checks of the AUX pin if it starts low
+        """
+        if not self.aux_pin:
+            try:
+                yield
+            finally:
+                return
+
+        wait_s = wait_time / 1000
+        high_s = high_time / 1000
+
+        self.logger.debug("Checking AUX pin: %s", self.aux_pin)
+        while not self.aux_pin.value:  # First wait for the AUX pin to go high
+            self.logger.debug("AUX pin is low, waiting for it to go high")
+            sleep(wait_s)
+
+        while True:
+            start_time = time()
+            end_s = start_time + high_s
+            while time() < end_s:
+                if not self.aux_pin.value:
+                    self.logger.debug("AUX pin went low, resetting timer")
+                    sleep(wait_s)
+                    break
+            else:
+                break
+        self.logger.debug("AUX pin is high, sending data")
+        yield
+
+    def chunk_data(self, data: bytes, chunk_size: int = None):
+        """Chunks the data into chunks of chunk_size"""
+        packet_size = chunk_size or self.packet_size
+        for i in range(0, len(data), packet_size):
+            yield data[i:i + packet_size]
+
     def send_msg(self, response: str):
         """Sends the message to the serial port
-
-        TODO: modules seem to have a limit of 1224 bytes per burst.
-        Handling this may require reading the AUX pin to determine when the module is ready to receive more data
+        If the aux pin is not defined, there may be data loss.
         """
         if isinstance(response, list) and not isinstance(response, str):
             response = ",".join(response)
@@ -97,7 +140,13 @@ class LoRanger(Queries, Actions):
             response += "\n"
         response = response.encode()
         self.logger.debug("Sending message: %s", response)
-        self.serial.write(response)
+
+        if not self.aux_pin and len(response) > self.packet_size * 2:
+            self.logger.warning("Data loss may occur without AUX pin")
+
+        for chunk in self.chunk_data(response):
+            with self.aux_ready():
+                self.serial.write(chunk)
 
     def handle_query(self, parameter: str):
         """Runs the specified query and returns the result"""
