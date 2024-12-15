@@ -1,11 +1,9 @@
-#!/usr/bin/python3
-
-from time import sleep, time
 from contextlib import contextmanager
+from time import sleep, time
 
 from serial import Serial
-from zenlib.logging import loggify
 from sys_gpio import Pin
+from zenlib.logging import loggify
 
 from .actions import Actions
 from .queries import Queries
@@ -93,15 +91,13 @@ class LoRanger(Queries, Actions):
 
     @contextmanager
     def aux_ready(self, high_time=10):
-        """ Checks that the AUX pin is high for 100ms before sending data.
-        High time is the time in ms that the AUX pin must be high before sending data
-        """
+        """Checks that the AUX pin is high for 100ms before sending data.
+        High time is the time in ms that the AUX pin must be high before sending data"""
         if not self.aux_pin:
             try:
                 yield
             finally:
                 return
-
 
         high_s = high_time / 1000
 
@@ -123,7 +119,7 @@ class LoRanger(Queries, Actions):
         """Chunks the data into chunks of chunk_size"""
         packet_size = chunk_size or self.packet_size
         for i in range(0, len(data), packet_size):
-            yield data[i:i + packet_size]
+            yield data[i : i + packet_size]
 
     def send_msg(self, response: str):
         """Sends the message to the serial port
