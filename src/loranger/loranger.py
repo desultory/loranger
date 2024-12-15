@@ -39,7 +39,7 @@ class LoRanger(Queries, Actions):
         self.read_timeout = read_timeout  # serial read timeout in s
         self.packet_size = packet_size
         if aux_pin:
-            self.aux_pin = Pin(aux_pin)
+            self.aux_pin = Pin(aux_pin, logger=self.logger)
             self.aux_pin.direction = "in"
         else:
             self.aux_pin = None
@@ -92,10 +92,9 @@ class LoRanger(Queries, Actions):
         self.logger.debug("Unknown data: %s", data)
 
     @contextmanager
-    def aux_ready(self, high_time=15, wait_time=25):
+    def aux_ready(self, high_time=10):
         """ Checks that the AUX pin is high for 100ms before sending data.
         High time is the time in ms that the AUX pin must be high before sending data
-        wait time is the time in ms between checks of the AUX pin if it starts low
         """
         if not self.aux_pin:
             try:
@@ -103,24 +102,20 @@ class LoRanger(Queries, Actions):
             finally:
                 return
 
-        wait_s = wait_time / 1000
+
         high_s = high_time / 1000
 
         self.logger.debug("Checking AUX pin: %s", self.aux_pin)
         while not self.aux_pin.value:  # First wait for the AUX pin to go high
             self.logger.debug("AUX pin is low, waiting for it to go high")
-            sleep(wait_s)
+            with self.aux_pin.on_rise():
+                pass
 
         while True:
-            start_time = time()
-            end_s = start_time + high_s
-            while time() < end_s:
-                if not self.aux_pin.value:
-                    self.logger.debug("AUX pin went low, resetting timer")
-                    sleep(wait_s)
+            with self.aux_pin.on_fall(high_s) as val:
+                if not val:  # If the pin is stil high, break
                     break
-            else:
-                break
+            self.logger.debug("AUX pin went low, waiting for it to stay high")
         self.logger.debug("AUX pin is high, sending data")
         yield
 
