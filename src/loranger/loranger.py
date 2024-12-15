@@ -4,6 +4,7 @@ from time import sleep, time
 
 from serial import Serial
 from zenlib.logging import loggify
+from sys_gpio import Pin
 
 from .actions import Actions
 from .queries import Queries
@@ -32,13 +33,16 @@ class LoRanger(Queries, Actions):
       c:<command> - Runs the specified command on the device
     """
 
-    def __init__(self, console: str, baud: int, read_timeout=5, *args, **kwargs):
+    def __init__(self, console: str, baud: int, read_timeout=5, aux_pin=None, *args, **kwargs):
         self.serial = Serial(port=console, baudrate=baud)
         self.read_timeout = read_timeout  # serial read timeout in s
+        self.aux_pin = Pin(aux_pin) if aux_pin else None
 
     def runloop(self):
         """Main loop, runs read_data forever and calls the appropriate action"""
-        self.logger.info("Starting main loop")
+        self.logger.info("Listening on serial port: %s", self.serial.port)
+        if self.aux_pin:
+            self.logger.info("Using AUX pin: %s", self.aux_pin)
         self.announce()
         while True:
             if data := self.read_data():
