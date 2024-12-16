@@ -37,24 +37,23 @@ class LoRanger(Queries, Actions):
         self.read_timeout = read_timeout  # serial read timeout in s
         self.packet_size = packet_size
 
-        if power_pin:
-            self.power_pin = Pin(power_pin, logger=self.logger)
+        self.power_pin = Pin(power_pin, logger=self.logger) if power_pin else None
+        self.aux_pin = Pin(aux_pin, logger=self.logger) if aux_pin else None
+
+    def module_startup(self):
+        """Runs the startup sequence for the module"""
+        if self.power_pin:
+            self.logger.info("Powering pin: %s", self.power_pin)
             self.power_pin.value = 1
-        else:
-            self.power_pin = None
 
-        if aux_pin:
-            self.aux_pin = Pin(aux_pin, logger=self.logger)
+        if self.aux_pin:
+            self.logger.info("Initalizing AUX pin: %s", self.aux_pin)
             self.aux_pin.direction = "in"
-        else:
-            self.aux_pin = None
-
 
     def runloop(self):
         """Main loop, runs read_data forever and calls the appropriate action"""
+        self.module_startup()
         self.logger.info("Listening on serial port: %s", self.serial.port)
-        if self.aux_pin:
-            self.logger.info("Using AUX pin: %s", self.aux_pin)
         self.announce()
         while True:
             if data := self.read_data():
