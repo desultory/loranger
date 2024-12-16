@@ -32,7 +32,9 @@ class LoRanger(Queries, Actions):
       c:<command> - Runs the specified command on the device
     """
 
-    def __init__(self, console: str, baud: int, read_timeout=5, power_pin=None, aux_pin=None, packet_size=200, *args, **kwargs):
+    def __init__(
+        self, console: str, baud: int, read_timeout=5, power_pin=None, aux_pin=None, packet_size=200, *args, **kwargs
+    ):
         self.serial = Serial(port=console, baudrate=baud)
         self.read_timeout = read_timeout  # serial read timeout in s
         self.packet_size = packet_size
@@ -48,13 +50,31 @@ class LoRanger(Queries, Actions):
 
         if self.aux_pin:
             self.logger.info("Initalizing AUX pin: %s", self.aux_pin)
+            self.aux_pin.value = 1
+            sleep(1)  # Wait for the AUX pin to settle, sometimes the module gets stuck
             self.aux_pin.direction = "in"
+
+        self.serial.reset_input_buffer()
+        self.announce()
+
+    def module_reset(self):
+        """Power cycles the module then sets the AUX pin high for 1s"""
+        if not self.power_pin and not self.aux_pin:
+            return self.logger.error("No power or AUX pin defined, cannot reset module")
+        self.logger.info("Resetting module")
+        self.power_pin.value = 0
+        sleep(0.5)  # Power the module off for half a second
+        self.power_pin.value = 1
+        self.aux_pin.value = 1
+        sleep(2) # Apply power to the aux pin for 2 seconds to kick the module because ???
+        self.aux_pin.direction = "in" # Set the pin to input
+        self.serial.reset_input_buffer() # Clear any junk data
+        self.announce()
 
     def runloop(self):
         """Main loop, runs read_data forever and calls the appropriate action"""
         self.module_startup()
         self.logger.info("Listening on serial port: %s", self.serial.port)
-        self.announce()
         while True:
             if data := self.read_data():
                 try:
@@ -186,6 +206,9 @@ class LoRanger(Queries, Actions):
 
     def read_data(self, timeout=None, break_char="\n"):
         """Attempts to read data from the serial port, stops after read_timeout"""
+        if self.power_pin and not self.power_pin.value:
+            self.logger.warning("Power is off, re-initializing module")
+            self.module_startup()
         timeout = timeout or self.read_timeout
         current_time = time()
         data = b""
@@ -193,12 +216,12 @@ class LoRanger(Queries, Actions):
         while time() - current_time < timeout:
             if chunk := self.serial.read_all():
                 self.logger.debug("Read chunk: %s", chunk)
-                if chunk in [b"\xff\xbf"] or chunk.startswith(b"\xff") or chunk.startswith(b"\xbf"):  # Got junk, reset AUX
+                if (
+                    chunk in [b"\xff\xbf"] or chunk.startswith(b"\xff") or chunk.startswith(b"\xbf")
+                ):  # Got junk, reset AUX
                     self.logger.warning("Got junk data, resetting AUX pin")
+                    self.module_reset()
                     data = b""
-                    self.aux_pin.value = 1
-                    sleep(1)
-                    self.serial.read_all()
                     continue
                 data += chunk
                 current_time = time()
@@ -206,7 +229,11 @@ class LoRanger(Queries, Actions):
                 break
             sleep(0.001)
         # Sanitize first
-        data = data.decode().strip()
+        try:
+            data = data.decode().strip()
+        except UnicodeDecodeError:
+            self.logger.warning("Data could not be decoded: %s", data)
+            return self.module_reset()
         if not data:
             return None
         # log and return data if received
