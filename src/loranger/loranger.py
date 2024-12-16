@@ -32,15 +32,23 @@ class LoRanger(Queries, Actions):
       c:<command> - Runs the specified command on the device
     """
 
-    def __init__(self, console: str, baud: int, read_timeout=5, aux_pin=None, packet_size=200, *args, **kwargs):
+    def __init__(self, console: str, baud: int, read_timeout=5, power_pin=None, aux_pin=None, packet_size=200, *args, **kwargs):
         self.serial = Serial(port=console, baudrate=baud)
         self.read_timeout = read_timeout  # serial read timeout in s
         self.packet_size = packet_size
+
+        if power_pin:
+            self.power_pin = Pin(power_pin, logger=self.logger)
+            self.power_pin.value = 1
+        else:
+            self.power_pin = None
+
         if aux_pin:
             self.aux_pin = Pin(aux_pin, logger=self.logger)
             self.aux_pin.direction = "in"
         else:
             self.aux_pin = None
+
 
     def runloop(self):
         """Main loop, runs read_data forever and calls the appropriate action"""
@@ -104,15 +112,19 @@ class LoRanger(Queries, Actions):
         self.logger.debug("Checking AUX pin: %s", self.aux_pin)
         while not self.aux_pin.value:  # First wait for the AUX pin to go high
             self.logger.debug("AUX pin is low, waiting for it to go high")
-            with self.aux_pin.on_rise():
-                pass
+            with self.aux_pin.on_rise() as val:
+                if val:
+                    self.logger.debug("AUX pin went high")
+                    break  # The pin is high
 
-        while True:
+        begin_time = time()
+        start_time = begin_time
+        while start_time + high_s > time():
             with self.aux_pin.on_fall(high_s) as val:
-                if not val:  # If the pin is stil high, break
-                    break
-            self.logger.debug("AUX pin went low, waiting for it to stay high")
-        self.logger.debug("AUX pin is high, sending data")
+                if val:  # The pin dropped, reset the timer
+                    self.logger.debug("AUX pin went low after %s", time() - start_time)
+                    start_time = time()
+        self.logger.debug("AUX pin is high, sending data. Elapsed time: %s", time() - begin_time)
         yield
 
     def chunk_data(self, data: bytes, chunk_size: int = None):
@@ -137,6 +149,7 @@ class LoRanger(Queries, Actions):
 
         for chunk in self.chunk_data(response):
             with self.aux_ready():
+                self.logger.debug("Sending chunk: %s", chunk)
                 self.serial.write(chunk)
 
     def handle_query(self, parameter: str):
@@ -181,6 +194,13 @@ class LoRanger(Queries, Actions):
         while time() - current_time < timeout:
             if chunk := self.serial.read_all():
                 self.logger.debug("Read chunk: %s", chunk)
+                if chunk in [b"\xff\xbf"] or chunk.startswith(b"\xff") or chunk.startswith(b"\xbf"):  # Got junk, reset AUX
+                    self.logger.warning("Got junk data, resetting AUX pin")
+                    data = b""
+                    self.aux_pin.value = 1
+                    sleep(1)
+                    self.serial.read_all()
+                    continue
                 data += chunk
                 current_time = time()
             if break_char and data.endswith(break_char.encode()):
