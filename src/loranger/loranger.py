@@ -33,25 +33,35 @@ class LoRanger(Queries, Actions):
     """
 
     def __init__(
-        self, console: str, baud: int, read_timeout=5, power_pin=None, aux_pin=None, packet_size=200, *args, **kwargs
+        self, console: str, baud: int, read_timeout=5, packet_size=200,
+        power_pin=None, aux_pin=None, m0_pin=None, m1_pin=None,
+        *args, **kwargs
     ):
         self.serial = Serial(port=console, baudrate=baud)
         self.read_timeout = read_timeout  # serial read timeout in s
         self.packet_size = packet_size
 
+        if m1_pin and not m0_pin or m0_pin and not m1_pin:
+            raise ValueError("Both M0 and M1 pins must be defined")
+
         self.power_pin = Pin(power_pin, logger=self.logger) if power_pin else None
         self.aux_pin = Pin(aux_pin, logger=self.logger) if aux_pin else None
+        self.m0_pin = Pin(m0_pin, logger=self.logger) if m0_pin else None
+        self.m1_pin = Pin(m1_pin, logger=self.logger) if m1_pin else None
 
     def module_startup(self):
         """Runs the startup sequence for the module"""
+        if self.m0_pin:
+            self.logger.info("Setting M0 and M1 to 1")
+            # a value of 1 activates nfets tying the pins to module ground enabling transmission
+            self.m0_pin.value, self.m1_pin.value = 1, 1
+
         if self.power_pin:
             self.logger.info("Powering pin: %s", self.power_pin)
             self.power_pin.value = 1
 
         if self.aux_pin:
             self.logger.info("Initalizing AUX pin: %s", self.aux_pin)
-            self.aux_pin.value = 1
-            sleep(1)  # Wait for the AUX pin to settle, sometimes the module gets stuck
             self.aux_pin.direction = "in"
 
         self.serial.reset_input_buffer()
@@ -65,9 +75,6 @@ class LoRanger(Queries, Actions):
         self.power_pin.value = 0
         sleep(0.5)  # Power the module off for half a second
         self.power_pin.value = 1
-        self.aux_pin.value = 1
-        sleep(2) # Apply power to the aux pin for 2 seconds to kick the module because ???
-        self.aux_pin.direction = "in" # Set the pin to input
         self.serial.reset_input_buffer() # Clear any junk data
         self.announce()
 
@@ -117,33 +124,33 @@ class LoRanger(Queries, Actions):
         self.logger.debug("Unknown data: %s", data)
 
     @contextmanager
-    def aux_ready(self, high_time=10):
-        """Checks that the AUX pin is high for 100ms before sending data.
-        High time is the time in ms that the AUX pin must be high before sending data"""
+    def aux_ready(self, low_time=10):
+        """Checks that the AUX pin is low for 10ms before sending data.
+        Low time is the time in ms that the AUX pin must be low before sending data"""
         if not self.aux_pin:
             try:
                 yield
             finally:
                 return
 
-        high_s = high_time / 1000
+        low_s = low_time / 1000
 
         self.logger.debug("Checking AUX pin: %s", self.aux_pin)
-        while not self.aux_pin.value:  # First wait for the AUX pin to go high
-            self.logger.debug("AUX pin is low, waiting for it to go high")
-            with self.aux_pin.on_rise() as val:
+        while self.aux_pin.value:  # First wait for the AUX pin to go low
+            self.logger.debug("AUX pin is high, waiting for it to go low")
+            with self.aux_pin.on_fall() as val:
                 if val:
-                    self.logger.debug("AUX pin went high")
-                    break  # The pin is high
+                    self.logger.debug("AUX pin went low")
+                    break  # The pin is low
 
         begin_time = time()
         start_time = begin_time
-        while start_time + high_s > time():
-            with self.aux_pin.on_fall(high_s) as val:
-                if val:  # The pin dropped, reset the timer
-                    self.logger.debug("AUX pin went low after %s", time() - start_time)
+        while start_time + low_s > time():
+            with self.aux_pin.on_rise(low_s) as val:
+                if val:  # The pin went high, reset the timer
+                    self.logger.debug("AUX pin went high after %s", time() - start_time)
                     start_time = time()
-        self.logger.debug("AUX pin is high, sending data. Elapsed time: %s", time() - begin_time)
+        self.logger.debug("AUX pin is low, sending data. Elapsed time: %s", time() - begin_time)
         yield
 
     def chunk_data(self, data: bytes, chunk_size: int = None):
