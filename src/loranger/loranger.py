@@ -35,6 +35,7 @@ class LoRanger(Queries, Actions):
     def __init__(
         self, console: str, baud: int, read_timeout=5, packet_size=200,
         power_pin=None, aux_pin=None, m0_pin=None, m1_pin=None,
+        channel=None,
         *args, **kwargs
     ):
         self.serial = Serial(port=console, baudrate=baud)
@@ -44,17 +45,31 @@ class LoRanger(Queries, Actions):
         if m1_pin and not m0_pin or m0_pin and not m1_pin:
             raise ValueError("Both M0 and M1 pins must be defined")
 
+        self.channel = channel
         self.power_pin = Pin(power_pin, logger=self.logger) if power_pin else None
         self.aux_pin = Pin(aux_pin, logger=self.logger) if aux_pin else None
         self.m0_pin = Pin(m0_pin, logger=self.logger) if m0_pin else None
         self.m1_pin = Pin(m1_pin, logger=self.logger) if m1_pin else None
 
+
+    def module_init(self):
+        """ Sets the module channel """
+        if not self.channel:
+            return self.logger.debug("No channel defined, skipping channel set")
+        if self.channel and (not self.m0_pin or not self.m1_pin):
+            raise ValueError("Both M0 and M1 pins must be defined to set the channel")
+
+        self.m0_pin.value, self.m1_pin.value = 0, 0
+
+        with self.aux_ready():
+            self.logger.info("Setting channel to: %s", self.channel)
+            self.serial.write(f"AT+CHANNEL={self.channel}\r\n".encode())
+            ret = self.read_data(break_char=b"x\00")
+            if ret != "=OK\x00":
+                raise ValueError(f"Failed to set channel: {ret}")
+
     def module_startup(self):
         """Runs the startup sequence for the module"""
-        if self.m0_pin:
-            self.logger.info("Setting M0 and M1 to 1")
-            # a value of 1 activates nfets tying the pins to module ground enabling transmission
-            self.m0_pin.value, self.m1_pin.value = 1, 1
 
         if self.power_pin:
             self.logger.info("Powering pin: %s", self.power_pin)
@@ -65,6 +80,12 @@ class LoRanger(Queries, Actions):
             self.aux_pin.direction = "in"
 
         self.serial.reset_input_buffer()
+        self.module_init()
+
+        if self.m0_pin:
+            self.logger.info("Setting M0 and M1 to 1")
+            # a value of 1 activates nfets tying the pins to module ground enabling transmission
+            self.m0_pin.value, self.m1_pin.value = 1, 1
         self.announce()
 
     def module_reset(self):
@@ -216,6 +237,8 @@ class LoRanger(Queries, Actions):
         if self.power_pin and not self.power_pin.value:
             self.logger.warning("Power is off, re-initializing module")
             self.module_startup()
+
+        break_char = break_char.encode() if isinstance(break_char, str) else break_char
         timeout = timeout or self.read_timeout
         current_time = time()
         data = b""
@@ -232,7 +255,7 @@ class LoRanger(Queries, Actions):
                     continue
                 data += chunk
                 current_time = time()
-            if break_char and data.endswith(break_char.encode()):
+            if break_char and data.endswith(break_char):
                 break
             sleep(0.001)
         # Sanitize first

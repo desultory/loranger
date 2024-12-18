@@ -13,6 +13,7 @@ BASE_ARGS = [
     {"flags": ["--power-pin", "-p"], "help": "Auxiliary pin to use", "action": "store", "dest": "power_pin"},
     {"flags": {"--m0-pin"}, "help": "M0 pin to use", "action": "store", "dest": "m0_pin"},
     {"flags": {"--m1-pin"}, "help": "M1 pin to use", "action": "store", "dest": "m1_pin"},
+    {"flags": {"--channel", "-c"}, "help": "Channel number to use", "action": "store"},
 ]
 
 
