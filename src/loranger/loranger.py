@@ -156,7 +156,7 @@ class LoRanger(Queries, Actions):
 
         low_s = low_time / 1000
 
-        self.logger.debug("Checking AUX pin: %s", self.aux_pin)
+        self.logger.debug("Checking AUX pin: %s", self.aux_pin.number)
         while self.aux_pin.value:  # First wait for the AUX pin to go low
             self.logger.debug("AUX pin is high, waiting for it to go low")
             with self.aux_pin.on_fall() as val:
