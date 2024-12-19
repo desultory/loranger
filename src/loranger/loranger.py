@@ -139,7 +139,7 @@ class LoRanger(Queries, Actions):
             self.logger.debug("Received query for parameter: %s", parameter)
             return self.handle_query(parameter)
         elif data[0] == "c":
-            command = data[1]
+            command = ":".join(data[1:] )  # Properly handle commands with colons
             self.logger.debug("Received command: %s", command)
             return self.handle_command(command)
         self.logger.debug("Unknown data: %s", data)
